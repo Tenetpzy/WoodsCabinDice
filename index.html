@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>摇骰子</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 初始界面 -->
+    <div id="initial-screen" class="screen">
+        <h1 class="title">摇骰子</h1>
+        <p class="subtitle">选择骰子数量</p>
+        <div class="dice-buttons">
+            <button class="dice-btn" data-count="1">1个</button>
+            <button class="dice-btn" data-count="2">2个</button>
+            <button class="dice-btn" data-count="3">3个</button>
+            <button class="dice-btn" data-count="4">4个</button>
+            <button class="dice-btn" data-count="5">5个</button>
+            <button class="dice-btn" data-count="6">6个</button>
+            <button class="dice-btn" data-count="7">7个</button>
+            <button class="dice-btn" data-count="8">8个</button>
+        </div>
+        <button id="start-btn" class="start-btn" disabled>开始</button>
+    </div>
+
+    <!-- 摇骰子界面 -->
+    <div id="shake-screen" class="screen hidden">
+        <div id="dice-area" class="dice-area">
+            <!-- 骰子将动态生成 -->
+        </div>
+        <div id="result-area" class="result-area hidden">
+            <div id="dice-results" class="dice-results"></div>
+            <div id="total-result" class="total-result"></div>
+        </div>
+        <p id="shake-hint" class="shake-hint">晃动手机开始摇骰子</p>
+        <button id="restart-btn" class="restart-btn hidden">重新开始</button>
+    </div>
+
+    <!-- 不支持提示 -->
+    <div id="not-supported" class="screen hidden">
+        <div class="error-message">
+            <h2>设备不支持</h2>
+            <p>此应用需要移动设备的传感器支持，请在支持传感器的移动设备上访问。</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
