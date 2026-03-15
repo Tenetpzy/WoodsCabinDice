@@ -140,9 +140,11 @@ body {
 }
 
 .total-result {
-    font-size: clamp(2rem, 10vw, 3rem);
-    font-weight: 700;
-    color: #2c3e50;
+    font-size: clamp(4rem, 20vw, 7rem);
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    line-height: 1;
 }
 
 /* 底部区域 */

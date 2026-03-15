@@ -17,9 +17,9 @@ const CONFIG = {
     COLLISION_COOLDOWN: 50,          // 碰撞音效冷却时间 (ms)
 
     // 振动参数
-    VIBRATION_COOLDOWN: 50,           // 振动间隔时间 (ms)
-    VIBRATION_BASE_DURATION: 100,     // 基础振动时长 (ms)
-    VIBRATION_INTENSITY_STEP: 50       // 每次碰撞增加的振动时长 (ms)
+    VIBRATION_COOLDOWN: 30,            // 振动间隔时间 (ms)
+    VIBRATION_BASE_DURATION: 200,      // 基础振动时长 (ms)
+    VIBRATION_INTENSITY_STEP: 100      // 每次碰撞增加的振动时长 (ms)
 };
 
 // 游戏状态枚举
@@ -299,6 +299,7 @@ function createDiceNeatly() {
         const initialValue = Math.floor(Math.random() * 3);
 
         const dice = createDiceElement(initialValue);
+        dice.style.transform = `translate(${x}px, ${y}px)`;
         elements.diceArea.appendChild(dice);
 
         state.diceElements.push(dice);
