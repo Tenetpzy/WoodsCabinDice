@@ -350,8 +350,8 @@ function handleMotion(event) {
     );
 
     const SHAKE_THRESHOLD = 15; // 开始晃动阈值
-    const STILLNESS_THRESHOLD = 5; // 静止阈值
-    const STILLNESS_DURATION = 500; // 静止持续时间（毫秒）
+    const STILLNESS_THRESHOLD = 8; // 静止阈值（提高灵敏度）
+    const STILLNESS_DURATION = 400; // 静止持续时间（毫秒）
 
     if (!state.isShaking) {
         // 检测开始晃动
@@ -359,15 +359,17 @@ function handleMotion(event) {
             onShakeStart();
         }
     } else {
-        // 检测晃动中的移动
+        // 持续检测：每次事件都检查是否静止
+        const now = Date.now();
+
         if (magnitude > STILLNESS_THRESHOLD) {
-            state.lastMovementTime = Date.now();
-            state.isWaitingForStillness = true;
-        } else if (state.isWaitingForStillness) {
-            // 检测静止
-            if (Date.now() - state.lastMovementTime > STILLNESS_DURATION) {
-                onShakeEnd();
-            }
+            // 还有运动，更新最后运动时间
+            state.lastMovementTime = now;
+        }
+
+        // 检查是否已经静止足够长时间
+        if (now - state.lastMovementTime >= STILLNESS_DURATION) {
+            onShakeEnd();
         }
     }
 }
