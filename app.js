@@ -14,8 +14,12 @@ const CONFIG = {
     RANDOM_IMPULSE_STRENGTH: 6,     // 随机冲量强度
 
     // 振动参数
-    VIBRATION_BASE_DURATION: 100,   // 基础振动时长 (ms)
-    VIBRATION_PER_DICE: 30          // 每个骰子增加的振动时长 (ms)
+    VIBRATION_PULSE_BASE: 30,       // 振动脉冲基础时长 (ms)
+    VIBRATION_PULSE_PER_DICE: 12,   // 每个骰子增加的脉冲时长 (ms)
+    VIBRATION_MAX_PULSE: 160,       // 单次脉冲最大时长 (ms)
+    VIBRATION_PAUSE_BASE: 90,       // 脉冲间隔基础时长 (ms)
+    VIBRATION_PAUSE_PER_DICE: -6,   // 每个骰子减少的间隔时长 (ms)
+    VIBRATION_MIN_PAUSE: 25         // 脉冲间隔最小值 (ms)
 };
 
 // 游戏状态枚举
@@ -44,7 +48,10 @@ const state = {
 
     // 动画状态
     animationFrame: null,
-    lastRandomImpulseTime: 0
+    lastRandomImpulseTime: 0,
+
+    // 振动状态
+    vibrationTimer: null
 };
 
 // ==================== DOM 元素 ====================
@@ -678,33 +685,44 @@ function startShakeVibration() {
         return;
     }
 
-    // 根据骰子个数计算振动强度
-    const duration = CONFIG.VIBRATION_BASE_DURATION + state.diceCount * CONFIG.VIBRATION_PER_DICE;
+    // 先停止可能存在的振动循环，避免叠加
+    stopShakeVibration();
 
     try {
-        // 使用振动模式数组创建连续振动 [振动时长, 暂停时长, 振动时长, ...]
-        // 这样比 setInterval 更可靠
-        const pattern = [];
-        for (let i = 0; i < 100; i++) { // 足够长的模式
-            pattern.push(duration);
-            pattern.push(30); // 短暂暂停
-        }
-        navigator.vibrate(pattern);
+        const diceCount = Math.max(1, state.diceCount);
+        let pulse = CONFIG.VIBRATION_PULSE_BASE + diceCount * CONFIG.VIBRATION_PULSE_PER_DICE;
+        pulse = Math.min(CONFIG.VIBRATION_MAX_PULSE, Math.max(20, pulse));
 
-        console.debug('振动已启动，强度:', duration, 'ms');
+        let pause = CONFIG.VIBRATION_PAUSE_BASE + diceCount * CONFIG.VIBRATION_PAUSE_PER_DICE;
+        pause = Math.max(CONFIG.VIBRATION_MIN_PAUSE, pause);
+
+        const interval = pulse + pause;
+
+        // 用短脉冲循环保持持续感，避免超长 pattern 被浏览器忽略
+        navigator.vibrate([pulse, pause]);
+        state.vibrationTimer = setInterval(() => {
+            navigator.vibrate([pulse, pause]);
+        }, interval);
+
+        console.debug('振动已启动，脉冲:', pulse, 'ms, 间隔:', pause, 'ms');
     } catch (e) {
         console.debug('振动失败:', e.message);
     }
 }
 
 function stopShakeVibration() {
-    if (navigator.vibrate) {
-        try {
-            navigator.vibrate(0); // 停止所有振动
-            console.debug('振动已停止');
-        } catch (e) {
-            // 忽略
-        }
+    if (state.vibrationTimer) {
+        clearInterval(state.vibrationTimer);
+        state.vibrationTimer = null;
+    }
+
+    if (!navigator.vibrate) return;
+
+    try {
+        navigator.vibrate(0); // 停止所有振动
+        console.debug('振动已停止');
+    } catch (e) {
+        // 忽略
     }
 }
 
