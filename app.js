@@ -18,7 +18,8 @@ const CONFIG = {
 
     // 振动参数
     VIBRATION_COOLDOWN: 30,           // 振动间隔时间 (ms)
-    VIBRATION_BASE_DURATION: 15       // 振动时长 (ms)
+    VIBRATION_BASE_DURATION: 50,      // 基础振动时长 (ms)
+    VIBRATION_MAX_DURATION: 200       // 最大振动时长 (ms)
 };
 
 // 游戏状态枚举
@@ -46,8 +47,7 @@ const state = {
     // 动画状态
     animationFrame: null,
     lastCollisionTime: 0,
-    lastRandomImpulseTime: 0,
-    vibrationInterval: null
+    lastRandomImpulseTime: 0
 };
 
 // ==================== DOM 元素 ====================
@@ -534,9 +534,10 @@ function updatePhysics() {
         }
     }
 
-    // 播放碰撞音效
+    // 播放碰撞音效和振动
     if (collisionCount > 0) {
         playCollisionSoundThrottled(Math.min(1, collisionCount * 0.3));
+        triggerCollisionVibration(collisionCount);
     }
 
     // 更新DOM
@@ -668,37 +669,34 @@ function resetGame() {
 }
 
 // ==================== 振动模块 ====================
-function startShakeVibration() {
-    if (!navigator.vibrate) return;
+let lastVibrationTime = 0;
 
-    // 立即触发一次振动（在用户交互上下文中）
+function triggerCollisionVibration(collisionCount) {
+    if (!navigator.vibrate || collisionCount <= 0) return;
+
+    const now = Date.now();
+    if (now - lastVibrationTime < CONFIG.VIBRATION_COOLDOWN) return;
+
+    // 根据碰撞次数计算振动时长，碰撞越多振动越强
+    const duration = Math.min(
+        CONFIG.VIBRATION_BASE_DURATION + collisionCount * 30,
+        CONFIG.VIBRATION_MAX_DURATION
+    );
+
     try {
-        navigator.vibrate(CONFIG.VIBRATION_BASE_DURATION);
+        navigator.vibrate(duration);
+        lastVibrationTime = now;
     } catch (e) {
         console.debug('振动失败:', e.message);
-        return;
     }
+}
 
-    // 启动周期性振动
-    state.vibrationInterval = setInterval(() => {
-        if (state.gameState !== GameState.SHAKING) {
-            stopShakeVibration();
-            return;
-        }
-        try {
-            navigator.vibrate(CONFIG.VIBRATION_BASE_DURATION);
-        } catch (e) {
-            // 忽略错误
-        }
-    }, CONFIG.VIBRATION_COOLDOWN);
+function startShakeVibration() {
+    // 初始化振动系统，现在振动是基于碰撞触发的
+    lastVibrationTime = 0;
 }
 
 function stopShakeVibration() {
-    if (state.vibrationInterval) {
-        clearInterval(state.vibrationInterval);
-        state.vibrationInterval = null;
-    }
-    // 停止振动
     if (navigator.vibrate) {
         try {
             navigator.vibrate(0);
