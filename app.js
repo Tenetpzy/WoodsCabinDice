@@ -4,6 +4,10 @@ const CONFIG = {
     SHAKE_START_THRESHOLD: 18,      // 开始摇晃的加速度阈值 (m/s²)
     SHAKE_END_THRESHOLD: 4,         // 停止摇晃的加速度阈值
     SETTLING_DURATION: 400,         // 静止持续时间 (ms)
+    SHAKE_CONTINUE_THRESHOLD: 8,    // threshold for significant motion during shaking
+    NO_MOTION_TIMEOUT: 700,         // end shake if no significant motion (ms)
+    MOTION_SMOOTHING_ALPHA: 0.8,    // smoothing factor for motion magnitude
+    GRAVITY_FILTER_ALPHA: 0.8,      // smoothing factor for gravity estimate
 
     // 物理参数
     FRICTION: 0.96,                 // 摩擦系数
@@ -38,6 +42,8 @@ const state = {
     dicePhysics: [],                // 骰子物理状态
     diceResults: [],
     isDemoMode: false,
+    smoothedMagnitude: 0,
+    lastMotionTime: 0,
 
     // 音频状态
     rollingAudio: null,             // 摇晃音效Audio元素
@@ -362,6 +368,8 @@ function startMotionDetection() {
     window.addEventListener('devicemotion', handleMotion);
     state.gravityEstimate = { x: 0, y: 0, z: 0 };
     state.stillnessStartTime = 0;
+    state.smoothedMagnitude = 0;
+    state.lastMotionTime = 0;
 }
 
 function stopMotionDetection() {
@@ -373,47 +381,67 @@ function handleMotion(event) {
 
     const acc = getFilteredAcceleration(event);
     const magnitude = Math.sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
+    const smoothing = CONFIG.MOTION_SMOOTHING_ALPHA;
+    if (state.smoothedMagnitude === 0) {
+        state.smoothedMagnitude = magnitude;
+    } else {
+        state.smoothedMagnitude = smoothing * state.smoothedMagnitude + (1 - smoothing) * magnitude;
+    }
 
-    switch (state.gameState) {
-        case GameState.READY:
-            if (magnitude > CONFIG.SHAKE_START_THRESHOLD) {
-                onShakeStart();
-            }
-            break;
+    const motionLevel = state.smoothedMagnitude;
+    const now = Date.now();
 
-        case GameState.SHAKING:
-            if (magnitude < CONFIG.SHAKE_END_THRESHOLD) {
-                if (state.stillnessStartTime === 0) {
-                    state.stillnessStartTime = Date.now();
-                } else if (Date.now() - state.stillnessStartTime > CONFIG.SETTLING_DURATION) {
-                    onShakeEnd();
-                }
-            } else {
-                state.stillnessStartTime = 0;
-            }
-            break;
+    if (state.gameState === GameState.READY) {
+        if (motionLevel > CONFIG.SHAKE_START_THRESHOLD) {
+            onShakeStart();
+        }
+        return;
+    }
+
+    if (motionLevel > CONFIG.SHAKE_CONTINUE_THRESHOLD) {
+        state.lastMotionTime = now;
+    }
+
+    if (motionLevel < CONFIG.SHAKE_END_THRESHOLD) {
+        if (state.stillnessStartTime === 0) {
+            state.stillnessStartTime = now;
+        } else if (now - state.stillnessStartTime > CONFIG.SETTLING_DURATION) {
+            onShakeEnd();
+            return;
+        }
+    } else {
+        state.stillnessStartTime = 0;
+    }
+
+    if (state.lastMotionTime && now - state.lastMotionTime > CONFIG.NO_MOTION_TIMEOUT) {
+        onShakeEnd();
     }
 }
 
 function getFilteredAcceleration(event) {
-    const acc = event.acceleration || event.accelerationIncludingGravity;
-    if (!acc) return { x: 0, y: 0, z: 0 };
+    const accIncluding = event.accelerationIncludingGravity;
+    if (accIncluding) {
+        const g = state.gravityEstimate;
+        const alpha = CONFIG.GRAVITY_FILTER_ALPHA;
+        const ax = accIncluding.x || 0;
+        const ay = accIncluding.y || 0;
+        const az = accIncluding.z || 0;
 
-    if (event.acceleration) {
-        return { x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 };
+        g.x = alpha * g.x + (1 - alpha) * ax;
+        g.y = alpha * g.y + (1 - alpha) * ay;
+        g.z = alpha * g.z + (1 - alpha) * az;
+
+        return {
+            x: ax - g.x,
+            y: ay - g.y,
+            z: az - g.z
+        };
     }
 
-    const g = state.gravityEstimate;
-    const alpha = 0.8;
-    g.x = alpha * g.x + (1 - alpha) * (acc.x || 0);
-    g.y = alpha * g.y + (1 - alpha) * (acc.y || 0);
-    g.z = alpha * g.z + (1 - alpha) * (acc.z || 0);
+    const acc = event.acceleration;
+    if (!acc) return { x: 0, y: 0, z: 0 };
 
-    return {
-        x: (acc.x || 0) - g.x,
-        y: (acc.y || 0) - g.y,
-        z: (acc.z || 0) - g.z
-    };
+    return { x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 };
 }
 
 // ==================== 摇骰子模式 - 摇动过程 ====================
@@ -421,6 +449,7 @@ function onShakeStart() {
     state.gameState = GameState.SHAKING;
     state.stillnessStartTime = 0;
     state.lastRandomImpulseTime = 0;
+    state.lastMotionTime = Date.now();
 
     // 添加shaking状态类 - 隐藏提示
     elements.shakeScreen.classList.add('shaking');
@@ -664,6 +693,8 @@ function resetGame() {
     state.dicePhysics = [];
     state.diceResults = [];
     state.stillnessStartTime = 0;
+    state.smoothedMagnitude = 0;
+    state.lastMotionTime = 0;
 
     elements.shakeScreen.classList.remove('showing-result');
     elements.shakeScreen.classList.remove('shaking');
