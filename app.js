@@ -11,6 +11,7 @@ const CONFIG = {
     RESTITUTION: 0.8,               // 弹性系数
     DICE_SIZE: 70,                  // 骰子尺寸
     PADDING: 5,                     // 边界内边距
+    MAX_VELOCITY: 30,               // 最大速度限制（像素/帧）
 
     // 音效参数
     COLLISION_COOLDOWN: 50,         // 碰撞音效冷却时间 (ms)
@@ -416,12 +417,22 @@ function applyAccelerationToPhysics(acc) {
         dice.vx += (Math.random() - 0.5) * 2;
         dice.vy += (Math.random() - 0.5) * 2;
         dice.rotationSpeed += (Math.random() - 0.5) * 5;
+
+        // 限制最大速度，防止骰子飞出屏幕
+        const speed = Math.sqrt(dice.vx * dice.vx + dice.vy * dice.vy);
+        if (speed > CONFIG.MAX_VELOCITY) {
+            const ratio = CONFIG.MAX_VELOCITY / speed;
+            dice.vx *= ratio;
+            dice.vy *= ratio;
+        }
     });
 }
 
 function updatePhysics() {
     const areaWidth = elements.diceArea.clientWidth || 300;
     const areaHeight = elements.diceArea.clientHeight || 300;
+    const maxX = areaWidth - CONFIG.DICE_SIZE - CONFIG.PADDING;
+    const maxY = areaHeight - CONFIG.DICE_SIZE - CONFIG.PADDING;
 
     state.dicePhysics.forEach(dice => {
         // 更新位置
@@ -435,9 +446,6 @@ function updatePhysics() {
         dice.rotationSpeed *= CONFIG.FRICTION;
 
         // 边界碰撞
-        const maxX = areaWidth - dice.size - CONFIG.PADDING;
-        const maxY = areaHeight - dice.size - CONFIG.PADDING;
-
         if (dice.x < CONFIG.PADDING) {
             dice.x = CONFIG.PADDING;
             dice.vx = Math.abs(dice.vx) * CONFIG.RESTITUTION;
@@ -462,9 +470,6 @@ function updatePhysics() {
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             playCollisionSoundThrottled(0.3);
         }
-
-        // 更新DOM
-        dice.element.style.transform = `translate(${dice.x}px, ${dice.y}px) rotate(${dice.rotation}deg)`;
     });
 
     // 骰子之间的碰撞
@@ -473,6 +478,15 @@ function updatePhysics() {
             checkDiceCollision(state.dicePhysics[i], state.dicePhysics[j]);
         }
     }
+
+    // 碰撞分离后再次强制约束边界，确保骰子不会超出屏幕
+    state.dicePhysics.forEach(dice => {
+        dice.x = Math.max(CONFIG.PADDING, Math.min(dice.x, maxX));
+        dice.y = Math.max(CONFIG.PADDING, Math.min(dice.y, maxY));
+
+        // 更新DOM
+        dice.element.style.transform = `translate(${dice.x}px, ${dice.y}px) rotate(${dice.rotation}deg)`;
+    });
 }
 
 function checkDiceCollision(dice1, dice2) {
@@ -512,8 +526,9 @@ function checkDiceCollision(dice1, dice2) {
         dice1.rotationSpeed += (Math.random() - 0.5) * 15;
         dice2.rotationSpeed += (Math.random() - 0.5) * 15;
 
-        // 播放碰撞音效
+        // 播放碰撞音效和震动
         playCollisionSoundThrottled(Math.min(0.6, relVel / 15));
+        triggerCollisionVibration();
     }
 }
 
@@ -527,6 +542,9 @@ function generateResults() {
 }
 
 function showResults() {
+    // 添加结果显示状态类
+    elements.shakeScreen.classList.add('showing-result');
+
     // 更新骰子显示值
     state.dicePhysics.forEach((dice, index) => {
         dice.element.dataset.value = state.diceResults[index];
@@ -540,6 +558,7 @@ function showResults() {
 
     elements.resultArea.classList.remove('hidden');
     elements.restartBtn.classList.remove('hidden');
+    elements.shakeHint.classList.add('hidden');
 }
 
 // ==================== 重置游戏 ====================
@@ -557,6 +576,7 @@ function resetGame() {
     state.diceResults = [];
     state.stillnessStartTime = 0;
 
+    elements.shakeScreen.classList.remove('showing-result');
     elements.diceButtons.forEach(btn => btn.classList.remove('selected'));
     elements.startBtn.disabled = true;
     elements.diceArea.innerHTML = '';
@@ -688,6 +708,12 @@ function stopVibration() {
         clearInterval(state.vibrationInterval);
         state.vibrationInterval = null;
     }
+}
+
+function triggerCollisionVibration() {
+    if (!navigator.vibrate) return;
+    // 短促的碰撞震动反馈
+    navigator.vibrate(15);
 }
 
 // ==================== 启动应用 ====================

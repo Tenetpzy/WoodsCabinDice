@@ -15,6 +15,7 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
+    min-height: 100dvh; /* 动态视口高度，更好适配移动端 */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -23,12 +24,15 @@ body {
 /* 界面容器 */
 .screen {
     width: 100%;
-    max-width: 420px;
-    min-height: 100vh;
+    height: 100%;
+    height: 100dvh;
     padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top)); /* 适配刘海屏 */
+    padding-bottom: max(20px, env(safe-area-inset-bottom)); /* 适配底部安全区 */
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
 }
 
 .hidden {
@@ -41,33 +45,32 @@ body {
 }
 
 .title {
-    font-size: 2.5rem;
+    font-size: clamp(1.8rem, 8vw, 2.5rem);
     color: white;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
     margin-bottom: 10px;
 }
 
 .subtitle {
-    font-size: 1.1rem;
+    font-size: clamp(1rem, 4vw, 1.1rem);
     color: rgba(255, 255, 255, 0.9);
     margin-bottom: 30px;
 }
 
 /* 骰子选择按钮 */
 .dice-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
     margin-bottom: 40px;
     width: 100%;
     max-width: 320px;
 }
 
 .dice-btn {
-    width: calc(50% - 8px);
-    padding: 20px 15px;
-    font-size: 1.2rem;
+    aspect-ratio: 1;
+    min-height: 60px;
+    font-size: clamp(1rem, 4vw, 1.2rem);
     font-weight: 600;
     border: none;
     border-radius: 12px;
@@ -76,15 +79,13 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.dice-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .dice-btn:active {
-    transform: translateY(0);
+    transform: scale(0.95);
 }
 
 .dice-btn.selected {
@@ -95,8 +96,8 @@ body {
 
 /* 开始按钮 */
 .start-btn {
-    padding: 18px 60px;
-    font-size: 1.3rem;
+    padding: 16px 50px;
+    font-size: clamp(1.1rem, 5vw, 1.3rem);
     font-weight: 700;
     border: none;
     border-radius: 30px;
@@ -113,39 +114,122 @@ body {
     box-shadow: none;
 }
 
-.start-btn:not(:disabled):hover {
-    background-color: #2ecc71;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-}
-
 .start-btn:not(:disabled):active {
-    transform: translateY(0);
+    transform: scale(0.95);
 }
 
-/* 摇骰子界面 */
+/* 摇骰子界面 - 关键改动：固定底部布局 */
 #shake-screen {
     justify-content: flex-start;
-    padding-top: 30px;
+    padding-top: 15px;
+    padding-bottom: 0;
 }
 
-/* 骰子显示区域 */
+/* 骰子显示区域 - 自适应高度 */
 .dice-area {
     width: 100%;
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-content: center;
-    gap: 15px;
-    padding: 20px;
-    min-height: 300px;
+    gap: 12px;
+    padding: 15px;
+    min-height: 150px;
+    max-height: calc(100dvh - 250px); /* 为底部区域预留空间 */
+    overflow: hidden;
+}
+
+/* 结果区域 */
+.result-area {
+    width: 100%;
+    padding: 15px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.dice-results {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.dice-result-item {
+    font-size: clamp(1.2rem, 5vw, 1.5rem);
+    font-weight: 700;
+    color: white;
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 8px;
+}
+
+.total-result {
+    font-size: clamp(1.6rem, 7vw, 2rem);
+    font-weight: 700;
+    color: #2c3e50;
+    background-color: white;
+    padding: 12px 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    display: inline-block;
+}
+
+/* 底部固定区域 - 提示和按钮 */
+.shake-bottom {
+    width: 100%;
+    padding: 15px 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(to top, rgba(102, 126, 234, 0.95) 0%, transparent 100%);
+}
+
+/* 提示文字 */
+.shake-hint {
+    font-size: clamp(1rem, 4vw, 1.1rem);
+    color: white;
+    text-align: center;
+    animation: pulse 2s ease-in-out infinite;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+/* 重新开始按钮 */
+.restart-btn {
+    padding: 14px 40px;
+    font-size: clamp(1rem, 4vw, 1.1rem);
+    font-weight: 600;
+    border: none;
+    border-radius: 25px;
+    background-color: #e74c3c;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.restart-btn:active {
+    transform: scale(0.95);
+    background-color: #c0392b;
 }
 
 /* 单个骰子 */
 .dice {
-    width: 70px;
-    height: 70px;
+    width: clamp(55px, 15vw, 70px);
+    height: clamp(55px, 15vw, 70px);
     background-color: white;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
@@ -154,6 +238,7 @@ body {
     align-items: center;
     position: relative;
     transition: transform 0.1s ease;
+    flex-shrink: 0;
 }
 
 .dice.shaking {
@@ -199,8 +284,8 @@ body {
 
 /* 单个点 */
 .dot {
-    width: 14px;
-    height: 14px;
+    width: clamp(10px, 3vw, 14px);
+    height: clamp(10px, 3vw, 14px);
     background-color: #2c3e50;
     border-radius: 50%;
     justify-self: center;
@@ -229,82 +314,6 @@ body {
     opacity: 1;
 }
 
-/* 提示文字 */
-.shake-hint {
-    font-size: 1.1rem;
-    color: rgba(255, 255, 255, 0.9);
-    text-align: center;
-    margin: 20px 0;
-    animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 0.7;
-    }
-    50% {
-        opacity: 1;
-    }
-}
-
-/* 结果区域 */
-.result-area {
-    width: 100%;
-    padding: 20px;
-    text-align: center;
-}
-
-.dice-results {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.dice-result-item {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: white;
-    background-color: rgba(255, 255, 255, 0.2);
-    padding: 8px 16px;
-    border-radius: 8px;
-}
-
-.total-result {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #2c3e50;
-    background-color: white;
-    padding: 15px 30px;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-/* 重新开始按钮 */
-.restart-btn {
-    padding: 15px 40px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 25px;
-    background-color: #e74c3c;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    margin-top: 20px;
-}
-
-.restart-btn:hover {
-    background-color: #c0392b;
-    transform: translateY(-2px);
-}
-
-.restart-btn:active {
-    transform: translateY(0);
-}
-
 /* 错误提示界面 */
 .error-container {
     text-align: center;
@@ -314,11 +323,11 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 60vh;
+    flex: 1;
 }
 
 .error-icon {
-    font-size: 4rem;
+    font-size: clamp(3rem, 12vw, 4rem);
     margin-bottom: 20px;
     animation: bounce 2s ease-in-out infinite;
 }
@@ -333,13 +342,13 @@ body {
 }
 
 .error-container h2 {
-    font-size: 1.8rem;
+    font-size: clamp(1.4rem, 6vw, 1.8rem);
     margin-bottom: 15px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .error-desc {
-    font-size: 1rem;
+    font-size: clamp(0.9rem, 4vw, 1rem);
     line-height: 1.6;
     opacity: 0.9;
     margin-bottom: 25px;
@@ -359,7 +368,7 @@ body {
     display: flex;
     align-items: center;
     padding: 12px 0;
-    font-size: 0.95rem;
+    font-size: clamp(0.85rem, 3.5vw, 0.95rem);
     opacity: 0.95;
 }
 
@@ -373,8 +382,8 @@ body {
 }
 
 .demo-btn {
-    padding: 16px 40px;
-    font-size: 1.1rem;
+    padding: 14px 35px;
+    font-size: clamp(1rem, 4vw, 1.1rem);
     font-weight: 600;
     border: none;
     border-radius: 25px;
@@ -386,46 +395,32 @@ body {
     margin-top: 10px;
 }
 
-.demo-btn:hover {
-    background-color: #2ecc71;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-}
-
 .demo-btn:active {
-    transform: translateY(0);
+    transform: scale(0.95);
 }
 
 .demo-hint {
-    font-size: 0.85rem;
+    font-size: clamp(0.8rem, 3vw, 0.85rem);
     opacity: 0.7;
     margin-top: 15px;
 }
 
-/* 响应式调整 */
-@media (max-width: 360px) {
-    .title {
-        font-size: 2rem;
-    }
-
-    .dice-btn {
-        padding: 15px 10px;
-        font-size: 1rem;
-    }
-
-    .dice {
-        width: 60px;
-        height: 60px;
-    }
-
-    .dot {
-        width: 12px;
-        height: 12px;
-    }
+/* 摇动中的状态 - 隐藏底部提示 */
+#shake-screen.shaking .shake-hint {
+    display: none;
 }
 
-@media (min-height: 700px) {
-    .dice-area {
-        min-height: 350px;
-    }
+/* 结果显示时的状态 - 调整布局 */
+#shake-screen.showing-result .dice-area {
+    flex: 0 0 auto;
+    min-height: auto;
+    padding: 10px;
+}
+
+#shake-screen.showing-result .result-area {
+    order: 2;
+}
+
+#shake-screen.showing-result .shake-bottom {
+    order: 3;
 }
