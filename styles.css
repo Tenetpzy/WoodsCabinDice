@@ -121,7 +121,7 @@ body {
 /* 摇骰子界面 - 关键改动：固定底部布局 */
 #shake-screen {
     justify-content: flex-start;
-    padding-top: 15px;
+    padding-top: 0;
     padding-bottom: 0;
 }
 
@@ -136,7 +136,6 @@ body {
     gap: 12px;
     padding: 15px;
     min-height: 150px;
-    max-height: calc(100dvh - 250px); /* 为底部区域预留空间 */
     overflow: hidden;
 }
 
@@ -405,8 +404,21 @@ body {
     margin-top: 15px;
 }
 
-/* 摇动中的状态 - 隐藏底部提示 */
+/* 摇动中的状态 - 骰子区域占满整个屏幕 */
+#shake-screen.shaking .dice-area {
+    max-height: 100dvh;
+    height: 100%;
+}
+
 #shake-screen.shaking .shake-hint {
+    display: none;
+}
+
+#shake-screen.shaking .result-area {
+    display: none;
+}
+
+#shake-screen.shaking .shake-bottom {
     display: none;
 }
 
@@ -415,12 +427,19 @@ body {
     flex: 0 0 auto;
     min-height: auto;
     padding: 10px;
+    max-height: calc(100dvh - 250px);
 }
 
 #shake-screen.showing-result .result-area {
-    order: 2;
+    order: 0; /* 结果区域在顶部 */
+    display: block;
+}
+
+#shake-screen.showing-result .result-area .dice-results {
+    display: none; /* 不需要单独显示每个骰子的结果文字 */
 }
 
 #shake-screen.showing-result .shake-bottom {
-    order: 3;
+    order: 2;
+    display: flex;
 }

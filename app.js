@@ -6,15 +6,19 @@ const CONFIG = {
     SETTLING_DURATION: 400,         // 静止持续时间 (ms)
 
     // 物理参数
-    PHYSICS_SCALE: 50,              // 加速度到像素的缩放因子
-    FRICTION: 0.95,                 // 摩擦系数
-    RESTITUTION: 0.8,               // 弹性系数
-    DICE_SIZE: 70,                  // 骰子尺寸
-    PADDING: 5,                     // 边界内边距
-    MAX_VELOCITY: 30,               // 最大速度限制（像素/帧）
+    FRICTION: 0.92,                 // 摩擦系数
+    RESTITUTION: 0.75,              // 弹性系数
+    PADDING: 10,                    // 边界内边距
+    MAX_VELOCITY: 25,               // 最大速度限制（像素/帧）
+    RANDOM_IMPULSE_INTERVAL: 80,    // 随机冲量间隔 (ms)
+    RANDOM_IMPULSE_STRENGTH: 8,     // 随机冲量强度
 
     // 音效参数
     COLLISION_COOLDOWN: 50,         // 碰撞音效冷却时间 (ms)
+
+    // 震动参数
+    COLLISION_VIBRATION_BASE: 15,   // 基础碰撞震动时长 (ms)
+    COLLISION_VIBRATION_DECAY: 100, // 碰撞震动衰减时间 (ms)
 
     // 重力滤波
     GRAVITY_FILTER_ALPHA: 0.8
@@ -44,9 +48,12 @@ const state = {
     // 动画状态
     animationFrame: null,
     lastCollisionTime: 0,
+    lastRandomImpulseTime: 0,
 
     // 震动状态
-    vibrationInterval: null
+    vibrationInterval: null,
+    collisionCount: 0,              // 当前帧碰撞计数
+    lastCollisionVibrationTime: 0   // 上次碰撞震动时间
 };
 
 // ==================== DOM 元素 ====================
@@ -58,7 +65,6 @@ const elements = {
     startBtn: document.getElementById('start-btn'),
     diceArea: document.getElementById('dice-area'),
     resultArea: document.getElementById('result-area'),
-    diceResults: document.getElementById('dice-results'),
     totalResult: document.getElementById('total-result'),
     shakeHint: document.getElementById('shake-hint'),
     restartBtn: document.getElementById('restart-btn'),
@@ -256,15 +262,27 @@ function generateDice() {
     state.dicePhysics = [];
     state.diceResults = [];
 
+    // 先创建骰子DOM元素以获取实际尺寸
+    const tempDice = document.createElement('div');
+    tempDice.className = 'dice';
+    tempDice.style.visibility = 'hidden';
+    elements.diceArea.appendChild(tempDice);
+
+    // 获取实际渲染尺寸
+    const diceSize = tempDice.offsetWidth || 70;
+
+    elements.diceArea.innerHTML = '';
+
     const areaWidth = elements.diceArea.clientWidth || 300;
     const areaHeight = elements.diceArea.clientHeight || 300;
-    const maxX = areaWidth - CONFIG.DICE_SIZE - CONFIG.PADDING;
-    const maxY = areaHeight - CONFIG.DICE_SIZE - CONFIG.PADDING;
+    const maxX = areaWidth - diceSize - CONFIG.PADDING;
+    const maxY = areaHeight - diceSize - CONFIG.PADDING;
 
     for (let i = 0; i < state.diceCount; i++) {
         const dice = document.createElement('div');
         dice.className = 'dice';
-        dice.dataset.value = '0';
+        // 初始随机显示 0, 1, 2
+        dice.dataset.value = Math.floor(Math.random() * 3).toString();
         dice.id = `dice-${i}`;
 
         // 创建点数容器 (3x3网格)
@@ -288,9 +306,14 @@ function generateDice() {
             vy: 0,
             rotation: Math.random() * 360,
             rotationSpeed: 0,
-            size: CONFIG.DICE_SIZE
+            size: diceSize
         });
     }
+
+    // 初始渲染位置
+    state.dicePhysics.forEach(dice => {
+        dice.element.style.transform = `translate(${dice.x}px, ${dice.y}px) rotate(${dice.rotation}deg)`;
+    });
 }
 
 // ==================== 传感器检测模块 ====================
@@ -318,10 +341,7 @@ function handleMotion(event) {
             break;
 
         case GameState.SHAKING:
-            // 应用传感器加速度到物理系统
-            applyAccelerationToPhysics(acc);
-
-            // 检测静止
+            // 检测静止 - 不再应用传感器加速度到物理系统
             if (magnitude < CONFIG.SHAKE_END_THRESHOLD) {
                 if (state.stillnessStartTime === 0) {
                     state.stillnessStartTime = Date.now();
@@ -361,14 +381,17 @@ function getFilteredAcceleration(event) {
 function onShakeStart() {
     state.gameState = GameState.SHAKING;
     state.stillnessStartTime = 0;
+    state.lastRandomImpulseTime = 0;
 
-    elements.shakeHint.classList.add('hidden');
+    // 添加shaking状态类
+    elements.shakeScreen.classList.add('shaking');
+    elements.shakeScreen.classList.remove('showing-result');
 
     // 给骰子随机初始速度
     state.dicePhysics.forEach(dice => {
-        dice.vx = (Math.random() - 0.5) * 10;
-        dice.vy = (Math.random() - 0.5) * 10;
-        dice.rotationSpeed = (Math.random() - 0.5) * 20;
+        dice.vx = (Math.random() - 0.5) * 15;
+        dice.vy = (Math.random() - 0.5) * 15;
+        dice.rotationSpeed = (Math.random() - 0.5) * 30;
     });
 
     startPhysicsAnimation();
@@ -405,34 +428,27 @@ function animate() {
     state.animationFrame = requestAnimationFrame(animate);
 }
 
-function applyAccelerationToPhysics(acc) {
-    const scale = CONFIG.PHYSICS_SCALE * 0.016; // 假设60fps，每帧约16ms
-
-    state.dicePhysics.forEach(dice => {
-        // 应用设备加速度（反向，因为屏幕坐标系）
-        dice.vx += -acc.x * scale;
-        dice.vy += -acc.y * scale;
-
-        // 添加小幅度随机模拟骰子翻滚
-        dice.vx += (Math.random() - 0.5) * 2;
-        dice.vy += (Math.random() - 0.5) * 2;
-        dice.rotationSpeed += (Math.random() - 0.5) * 5;
-
-        // 限制最大速度，防止骰子飞出屏幕
-        const speed = Math.sqrt(dice.vx * dice.vx + dice.vy * dice.vy);
-        if (speed > CONFIG.MAX_VELOCITY) {
-            const ratio = CONFIG.MAX_VELOCITY / speed;
-            dice.vx *= ratio;
-            dice.vy *= ratio;
-        }
-    });
-}
-
 function updatePhysics() {
     const areaWidth = elements.diceArea.clientWidth || 300;
     const areaHeight = elements.diceArea.clientHeight || 300;
-    const maxX = areaWidth - CONFIG.DICE_SIZE - CONFIG.PADDING;
-    const maxY = areaHeight - CONFIG.DICE_SIZE - CONFIG.PADDING;
+
+    // 重置碰撞计数
+    state.collisionCount = 0;
+
+    const now = Date.now();
+
+    // 定期给骰子施加随机冲量，实现随机运动
+    if (now - state.lastRandomImpulseTime > CONFIG.RANDOM_IMPULSE_INTERVAL) {
+        state.lastRandomImpulseTime = now;
+        state.dicePhysics.forEach(dice => {
+            // 随机方向冲量
+            const angle = Math.random() * Math.PI * 2;
+            const strength = CONFIG.RANDOM_IMPULSE_STRENGTH * (0.5 + Math.random());
+            dice.vx += Math.cos(angle) * strength;
+            dice.vy += Math.sin(angle) * strength;
+            dice.rotationSpeed += (Math.random() - 0.5) * 15;
+        });
+    }
 
     state.dicePhysics.forEach(dice => {
         // 更新位置
@@ -445,30 +461,45 @@ function updatePhysics() {
         dice.vy *= CONFIG.FRICTION;
         dice.rotationSpeed *= CONFIG.FRICTION;
 
-        // 边界碰撞
+        // 限制最大速度
+        const speed = Math.sqrt(dice.vx * dice.vx + dice.vy * dice.vy);
+        if (speed > CONFIG.MAX_VELOCITY) {
+            const ratio = CONFIG.MAX_VELOCITY / speed;
+            dice.vx *= ratio;
+            dice.vy *= ratio;
+        }
+
+        // 边界碰撞 - 使用骰子实际尺寸
+        const maxX = areaWidth - dice.size - CONFIG.PADDING;
+        const maxY = areaHeight - dice.size - CONFIG.PADDING;
+
         if (dice.x < CONFIG.PADDING) {
             dice.x = CONFIG.PADDING;
             dice.vx = Math.abs(dice.vx) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             playCollisionSoundThrottled(0.3);
+            state.collisionCount++;
         }
         if (dice.x > maxX) {
             dice.x = maxX;
             dice.vx = -Math.abs(dice.vx) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             playCollisionSoundThrottled(0.3);
+            state.collisionCount++;
         }
         if (dice.y < CONFIG.PADDING) {
             dice.y = CONFIG.PADDING;
             dice.vy = Math.abs(dice.vy) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             playCollisionSoundThrottled(0.3);
+            state.collisionCount++;
         }
         if (dice.y > maxY) {
             dice.y = maxY;
             dice.vy = -Math.abs(dice.vy) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             playCollisionSoundThrottled(0.3);
+            state.collisionCount++;
         }
     });
 
@@ -479,21 +510,31 @@ function updatePhysics() {
         }
     }
 
-    // 碰撞分离后再次强制约束边界，确保骰子不会超出屏幕
+    // 处理碰撞震动 - 多个骰子一起碰撞时增加震动强度
+    if (state.collisionCount > 0) {
+        triggerCollisionVibration(state.collisionCount);
+    }
+
+    // 更新DOM - 确保所有骰子在边界内
     state.dicePhysics.forEach(dice => {
+        const maxX = areaWidth - dice.size - CONFIG.PADDING;
+        const maxY = areaHeight - dice.size - CONFIG.PADDING;
         dice.x = Math.max(CONFIG.PADDING, Math.min(dice.x, maxX));
         dice.y = Math.max(CONFIG.PADDING, Math.min(dice.y, maxY));
 
-        // 更新DOM
         dice.element.style.transform = `translate(${dice.x}px, ${dice.y}px) rotate(${dice.rotation}deg)`;
     });
 }
 
 function checkDiceCollision(dice1, dice2) {
+    // 使用实际骰子尺寸进行碰撞检测
+    const size1 = dice1.size;
+    const size2 = dice2.size;
+
     // AABB碰撞检测
-    const overlapX = Math.min(dice1.x + dice1.size, dice2.x + dice2.size) -
+    const overlapX = Math.min(dice1.x + size1, dice2.x + size2) -
                      Math.max(dice1.x, dice2.x);
-    const overlapY = Math.min(dice1.y + dice1.size, dice2.y + dice2.size) -
+    const overlapY = Math.min(dice1.y + size1, dice2.y + size2) -
                      Math.max(dice1.y, dice2.y);
 
     if (overlapX > 0 && overlapY > 0) {
@@ -523,12 +564,14 @@ function checkDiceCollision(dice1, dice2) {
         }
 
         // 碰撞时改变旋转
-        dice1.rotationSpeed += (Math.random() - 0.5) * 15;
-        dice2.rotationSpeed += (Math.random() - 0.5) * 15;
+        dice1.rotationSpeed += (Math.random() - 0.5) * 20;
+        dice2.rotationSpeed += (Math.random() - 0.5) * 20;
 
-        // 播放碰撞音效和震动
-        playCollisionSoundThrottled(Math.min(0.6, relVel / 15));
-        triggerCollisionVibration();
+        // 播放碰撞音效
+        playCollisionSoundThrottled(Math.min(0.7, relVel / 12));
+
+        // 增加碰撞计数
+        state.collisionCount++;
     }
 }
 
@@ -542,7 +585,8 @@ function generateResults() {
 }
 
 function showResults() {
-    // 添加结果显示状态类
+    // 移除shaking状态，添加结果显示状态类
+    elements.shakeScreen.classList.remove('shaking');
     elements.shakeScreen.classList.add('showing-result');
 
     // 更新骰子显示值
@@ -575,8 +619,10 @@ function resetGame() {
     state.dicePhysics = [];
     state.diceResults = [];
     state.stillnessStartTime = 0;
+    state.collisionCount = 0;
 
     elements.shakeScreen.classList.remove('showing-result');
+    elements.shakeScreen.classList.remove('shaking');
     elements.diceButtons.forEach(btn => btn.classList.remove('selected'));
     elements.startBtn.disabled = true;
     elements.diceArea.innerHTML = '';
@@ -710,10 +756,24 @@ function stopVibration() {
     }
 }
 
-function triggerCollisionVibration() {
+function triggerCollisionVibration(collisionCount) {
     if (!navigator.vibrate) return;
-    // 短促的碰撞震动反馈
-    navigator.vibrate(15);
+
+    const now = Date.now();
+    // 防止震动过于频繁
+    if (now - state.lastCollisionVibrationTime < CONFIG.COLLISION_VIBRATION_DECAY) {
+        return;
+    }
+    state.lastCollisionVibrationTime = now;
+
+    // 根据碰撞数量增加震动强度
+    // 1次碰撞: 15ms, 2次: 25ms, 3次: 40ms, 4次: 60ms...
+    const duration = Math.min(
+        CONFIG.COLLISION_VIBRATION_BASE * Math.pow(1.5, collisionCount - 1),
+        100 // 最大100ms
+    );
+
+    navigator.vibrate(duration);
 }
 
 // ==================== 启动应用 ====================
