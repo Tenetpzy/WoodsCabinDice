@@ -15,7 +15,7 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    min-height: 100dvh; /* 动态视口高度，更好适配移动端 */
+    min-height: 100dvh;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -27,8 +27,8 @@ body {
     height: 100%;
     height: 100dvh;
     padding: 20px;
-    padding-top: max(20px, env(safe-area-inset-top)); /* 适配刘海屏 */
-    padding-bottom: max(20px, env(safe-area-inset-bottom)); /* 适配底部安全区 */
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -39,7 +39,7 @@ body {
     display: none !important;
 }
 
-/* 初始界面 */
+/* ==================== 初始界面 ==================== */
 #initial-screen {
     justify-content: center;
 }
@@ -57,18 +57,17 @@ body {
     margin-bottom: 30px;
 }
 
-/* 骰子选择按钮 */
+/* 骰子选择按钮 - 每行2个 */
 .dice-buttons {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     margin-bottom: 40px;
     width: 100%;
-    max-width: 320px;
+    max-width: 280px;
 }
 
 .dice-btn {
-    aspect-ratio: 1;
     min-height: 60px;
     font-size: clamp(1rem, 4vw, 1.2rem);
     font-weight: 600;
@@ -118,74 +117,43 @@ body {
     transform: scale(0.95);
 }
 
-/* 摇骰子界面 - 关键改动：固定底部布局 */
+/* ==================== 摇骰子界面 ==================== */
 #shake-screen {
     justify-content: flex-start;
-    padding-top: 0;
-    padding-bottom: 0;
+    padding-top: 30px;
 }
 
-/* 骰子显示区域 - 自适应高度 */
+/* 骰子显示区域 */
 .dice-area {
     width: 100%;
-    flex: 1 1 auto;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: center;
-    gap: 12px;
-    padding: 15px;
-    min-height: 150px;
-    overflow: hidden;
+    flex: 0 0 auto;
+    min-height: 200px;
+    position: relative;
 }
 
-/* 结果区域 */
+/* 结果区域 - 在骰子下方 */
 .result-area {
     width: 100%;
-    padding: 15px;
+    padding: 20px;
     text-align: center;
     flex-shrink: 0;
 }
 
-.dice-results {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.dice-result-item {
-    font-size: clamp(1.2rem, 5vw, 1.5rem);
-    font-weight: 700;
-    color: white;
-    background-color: rgba(255, 255, 255, 0.2);
-    padding: 6px 14px;
-    border-radius: 8px;
-}
-
 .total-result {
-    font-size: clamp(1.6rem, 7vw, 2rem);
+    font-size: clamp(2rem, 10vw, 3rem);
     font-weight: 700;
     color: #2c3e50;
-    background-color: white;
-    padding: 12px 25px;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    display: inline-block;
 }
 
-/* 底部固定区域 - 提示和按钮 */
+/* 底部区域 */
 .shake-bottom {
     width: 100%;
-    padding: 15px 20px;
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding: 20px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    background: linear-gradient(to top, rgba(102, 126, 234, 0.95) 0%, transparent 100%);
+    gap: 15px;
 }
 
 /* 提示文字 */
@@ -193,17 +161,7 @@ body {
     font-size: clamp(1rem, 4vw, 1.1rem);
     color: white;
     text-align: center;
-    animation: pulse 2s ease-in-out infinite;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 0.7;
-    }
-    50% {
-        opacity: 1;
-    }
 }
 
 /* 重新开始按钮 */
@@ -225,50 +183,15 @@ body {
     background-color: #c0392b;
 }
 
-/* 单个骰子 */
+/* ==================== 单个骰子样式 ==================== */
 .dice {
     width: clamp(55px, 15vw, 70px);
     height: clamp(55px, 15vw, 70px);
     background-color: white;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    transition: transform 0.1s ease;
-    flex-shrink: 0;
-}
-
-.dice.shaking {
-    animation: shake 0.15s ease-in-out infinite;
-}
-
-.dice.shaking:nth-child(odd) {
-    animation-delay: 0.05s;
-}
-
-@keyframes shake {
-    0% {
-        transform: translate(0, 0) rotate(0deg);
-        opacity: 0.9;
-    }
-    25% {
-        transform: translate(8px, -8px) rotate(10deg);
-        opacity: 0.95;
-    }
-    50% {
-        transform: translate(-5px, 5px) rotate(-5deg);
-        opacity: 0.85;
-    }
-    75% {
-        transform: translate(6px, 3px) rotate(8deg);
-        opacity: 0.9;
-    }
-    100% {
-        transform: translate(0, 0) rotate(0deg);
-        opacity: 1;
-    }
+    position: absolute;
+    transition: none;
 }
 
 /* 骰子点数容器 */
@@ -290,11 +213,6 @@ body {
     justify-self: center;
     align-self: center;
     opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.dot.visible {
-    opacity: 1;
 }
 
 /* 0点：不显示任何点 */
@@ -313,7 +231,24 @@ body {
     opacity: 1;
 }
 
-/* 错误提示界面 */
+/* ==================== 摇动中状态 ==================== */
+#shake-screen.shaking .dice-area {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#shake-screen.shaking .shake-hint,
+#shake-screen.shaking .result-area,
+#shake-screen.shaking .restart-btn {
+    display: none;
+}
+
+/* ==================== 结果显示状态 ==================== */
+#shake-screen.showing-result .shake-hint {
+    display: none;
+}
+
+/* ==================== 错误提示界面 ==================== */
 .error-container {
     text-align: center;
     color: white;
@@ -328,16 +263,6 @@ body {
 .error-icon {
     font-size: clamp(3rem, 12vw, 4rem);
     margin-bottom: 20px;
-    animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
 }
 
 .error-container h2 {
@@ -402,44 +327,5 @@ body {
     font-size: clamp(0.8rem, 3vw, 0.85rem);
     opacity: 0.7;
     margin-top: 15px;
-}
-
-/* 摇动中的状态 - 骰子区域占满整个屏幕 */
-#shake-screen.shaking .dice-area {
-    max-height: 100dvh;
-    height: 100%;
-}
-
-#shake-screen.shaking .shake-hint {
-    display: none;
-}
-
-#shake-screen.shaking .result-area {
-    display: none;
-}
-
-#shake-screen.shaking .shake-bottom {
-    display: none;
-}
-
-/* 结果显示时的状态 - 调整布局 */
-#shake-screen.showing-result .dice-area {
-    flex: 0 0 auto;
-    min-height: auto;
-    padding: 10px;
-    max-height: calc(100dvh - 250px);
-}
-
-#shake-screen.showing-result .result-area {
-    order: 0; /* 结果区域在顶部 */
-    display: block;
-}
-
-#shake-screen.showing-result .result-area .dice-results {
-    display: none; /* 不需要单独显示每个骰子的结果文字 */
-}
-
-#shake-screen.showing-result .shake-bottom {
-    order: 2;
-    display: flex;
+    color: white;
 }

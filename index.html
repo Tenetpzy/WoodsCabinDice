@@ -12,30 +12,28 @@
         <h1 class="title">摇骰子</h1>
         <p class="subtitle">选择骰子数量</p>
         <div class="dice-buttons">
-            <button class="dice-btn" data-count="1">1个</button>
-            <button class="dice-btn" data-count="2">2个</button>
-            <button class="dice-btn" data-count="3">3个</button>
-            <button class="dice-btn" data-count="4">4个</button>
-            <button class="dice-btn" data-count="5">5个</button>
-            <button class="dice-btn" data-count="6">6个</button>
-            <button class="dice-btn" data-count="7">7个</button>
-            <button class="dice-btn" data-count="8">8个</button>
+            <button class="dice-btn" data-count="1">1</button>
+            <button class="dice-btn" data-count="2">2</button>
+            <button class="dice-btn" data-count="3">3</button>
+            <button class="dice-btn" data-count="4">4</button>
+            <button class="dice-btn" data-count="5">5</button>
+            <button class="dice-btn" data-count="6">6</button>
+            <button class="dice-btn" data-count="7">7</button>
+            <button class="dice-btn" data-count="8">8</button>
         </div>
         <button id="start-btn" class="start-btn" disabled>开始</button>
     </div>
 
     <!-- 摇骰子界面 -->
     <div id="shake-screen" class="screen hidden">
-        <!-- 总和显示区域 - 结果时在骰子上方显示 -->
-        <div id="result-area" class="result-area hidden">
-            <div id="total-result" class="total-result"></div>
-        </div>
         <div id="dice-area" class="dice-area">
             <!-- 骰子将动态生成 -->
         </div>
-        <!-- 底部固定区域 -->
+        <div id="result-area" class="result-area hidden">
+            <div id="total-result" class="total-result"></div>
+        </div>
         <div class="shake-bottom">
-            <p id="shake-hint" class="shake-hint">晃动手机开始摇骰子</p>
+            <p id="shake-hint" class="shake-hint">晃动手机摇骰子</p>
             <button id="restart-btn" class="restart-btn hidden">重新开始</button>
         </div>
     </div>
