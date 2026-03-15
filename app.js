@@ -13,13 +13,9 @@ const CONFIG = {
     RANDOM_IMPULSE_INTERVAL: 100,   // 随机冲量间隔 (ms)
     RANDOM_IMPULSE_STRENGTH: 6,     // 随机冲量强度
 
-    // 音效参数
-    COLLISION_COOLDOWN: 50,          // 碰撞音效冷却时间 (ms)
-
     // 振动参数
-    VIBRATION_COOLDOWN: 30,            // 振动间隔时间 (ms)
-    VIBRATION_BASE_DURATION: 200,      // 基础振动时长 (ms)
-    VIBRATION_INTENSITY_STEP: 100      // 每次碰撞增加的振动时长 (ms)
+    VIBRATION_BASE_DURATION: 100,   // 基础振动时长 (ms)
+    VIBRATION_PER_DICE: 30          // 每个骰子增加的振动时长 (ms)
 };
 
 // 游戏状态枚举
@@ -37,8 +33,11 @@ const state = {
     diceElements: [],               // 骰子DOM元素数组
     dicePhysics: [],                // 骰子物理状态
     diceResults: [],
-    audioContext: null,
     isDemoMode: false,
+
+    // 音频状态
+    rollingAudio: null,             // 摇晃音效Audio元素
+    vibrationInterval: null,        // 振动定时器
 
     // 传感器状态
     gravityEstimate: { x: 0, y: 0, z: 0 },
@@ -46,7 +45,6 @@ const state = {
 
     // 动画状态
     animationFrame: null,
-    lastCollisionTime: 0,
     lastRandomImpulseTime: 0
 };
 
@@ -197,8 +195,6 @@ function showScreen(screenName) {
 
 // ==================== 游戏流程 ====================
 async function startGame() {
-    await initAudio();
-
     // iOS 13+ 权限请求
     if (typeof DeviceMotionEvent !== 'undefined' &&
         typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -223,13 +219,11 @@ async function startGame() {
 
 function startDemoMode() {
     state.isDemoMode = true;
-    initAudio();
     showScreen('initial');
     bindEvents();
 }
 
 async function startGameDemo() {
-    await initAudio();
     showScreen('shake');
     initShakeMode();
     state.gameState = GameState.READY;
@@ -422,8 +416,8 @@ function onShakeStart() {
         dice.rotationSpeed = (Math.random() - 0.5) * 30;
     });
 
-    // 在用户交互上下文中启动振动
-    startShakeVibration();
+    // 启动振动和摇晃音效
+    startShakeFeedback();
 
     startPhysicsAnimation();
 }
@@ -433,10 +427,14 @@ function onShakeEnd() {
 
     stopMotionDetection();
     stopPhysicsAnimation();
-    stopShakeVibration();
+
+    // 停止振动和摇晃音效
+    stopShakeFeedback();
+
+    // 播放落地音效
+    playDropDiceSound();
 
     generateResults();
-    playLandingSounds();
     showResults();
 }
 
@@ -533,12 +531,6 @@ function updatePhysics() {
                 collisionCount++;
             }
         }
-    }
-
-    // 播放碰撞音效和振动
-    if (collisionCount > 0) {
-        playCollisionSoundThrottled(Math.min(1, collisionCount * 0.3));
-        triggerCollisionVibration(collisionCount);
     }
 
     // 更新DOM
@@ -643,7 +635,7 @@ function arrangeDiceNeatly() {
 // ==================== 重置游戏 ====================
 function resetGame() {
     stopPhysicsAnimation();
-    stopShakeVibration();
+    stopShakeFeedback();
 
     if (state.isDemoMode) {
         elements.diceArea.removeEventListener('click', handleDemoShake);
@@ -670,31 +662,37 @@ function resetGame() {
 }
 
 // ==================== 振动模块 ====================
-let lastVibrationTime = 0;
+function startShakeVibration() {
+    if (!navigator.vibrate) return;
 
-function triggerCollisionVibration(collisionCount) {
-    if (!navigator.vibrate || collisionCount <= 0) return;
+    // 根据骰子个数计算振动强度
+    const duration = CONFIG.VIBRATION_BASE_DURATION + state.diceCount * CONFIG.VIBRATION_PER_DICE;
 
-    const now = Date.now();
-    if (now - lastVibrationTime < CONFIG.VIBRATION_COOLDOWN) return;
-
-    // 根据碰撞次数计算振动时长，碰撞越多振动越强
-    const duration = CONFIG.VIBRATION_BASE_DURATION + collisionCount * CONFIG.VIBRATION_INTENSITY_STEP;
-
+    // 立即触发一次振动
     try {
         navigator.vibrate(duration);
-        lastVibrationTime = now;
     } catch (e) {
         console.debug('振动失败:', e.message);
     }
-}
 
-function startShakeVibration() {
-    // 初始化振动系统，现在振动是基于碰撞触发的
-    lastVibrationTime = 0;
+    // 持续振动（使用定时器循环触发）
+    state.vibrationInterval = setInterval(() => {
+        if (state.gameState === GameState.SHAKING) {
+            try {
+                navigator.vibrate(duration);
+            } catch (e) {
+                console.debug('振动失败:', e.message);
+            }
+        }
+    }, duration + 50);
 }
 
 function stopShakeVibration() {
+    if (state.vibrationInterval) {
+        clearInterval(state.vibrationInterval);
+        state.vibrationInterval = null;
+    }
+
     if (navigator.vibrate) {
         try {
             navigator.vibrate(0);
@@ -705,96 +703,68 @@ function stopShakeVibration() {
 }
 
 // ==================== 音效模块 ====================
-async function initAudio() {
-    if (state.audioContext) return;
-    try {
-        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) {
-        console.error('无法初始化音频:', e);
+function initRollingAudio() {
+    // 创建摇晃音效Audio元素
+    state.rollingAudio = new Audio('rollingdice.mp3');
+    state.rollingAudio.loop = true;
+    state.rollingAudio.volume = 0.6;
+}
+
+function startRollingSound() {
+    if (!state.rollingAudio) {
+        initRollingAudio();
+    }
+
+    // 确保从头开始播放，不重叠
+    if (state.rollingAudio.paused) {
+        state.rollingAudio.currentTime = 0;
+        state.rollingAudio.play().catch(e => {
+            console.debug('播放摇晃音效失败:', e.message);
+        });
     }
 }
 
-function playCollisionSoundThrottled(volume = 0.5) {
-    const now = Date.now();
-    if (now - state.lastCollisionTime > CONFIG.COLLISION_COOLDOWN) {
-        playCollisionSound(volume);
-        state.lastCollisionTime = now;
+function stopRollingSound() {
+    if (state.rollingAudio) {
+        state.rollingAudio.pause();
+        state.rollingAudio.currentTime = 0;
     }
 }
 
-function playCollisionSound(volume = 0.5) {
-    if (!state.audioContext) return;
+function playDropDiceSound() {
+    // 根据骰子个数，播放多次落地音效，模拟叠加效果
+    const baseDelay = 80; // 每个骰子之间的基础延迟
+    const randomDelayRange = 40; // 随机延迟范围
 
-    const ctx = state.audioContext;
-    const now = ctx.currentTime;
-    const duration = 0.05;
-
-    // 主音调
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(800 + volume * 400, now);
-    osc.frequency.exponentialRampToValueAtTime(200, now + duration);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(Math.min(0.6, volume), now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + duration);
-
-    // 噪声脉冲
-    addNoiseBurst(ctx, now, 0.02, volume * 0.3);
-}
-
-function addNoiseBurst(ctx, time, duration, volume) {
-    const bufferSize = ctx.sampleRate * duration;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.1));
-    }
-
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-
-    const gain = ctx.createGain();
-    gain.gain.value = volume;
-
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    source.start(time);
-}
-
-function playLandingSounds() {
     for (let i = 0; i < state.diceCount; i++) {
+        const delay = i * baseDelay + Math.random() * randomDelayRange;
         setTimeout(() => {
-            playSingleLandingSound();
-        }, i * 80);
+            playSingleDropSound();
+        }, delay);
     }
 }
 
-function playSingleLandingSound() {
-    if (!state.audioContext) return;
+function playSingleDropSound() {
+    const audio = new Audio('dropdice.mp3');
+    audio.volume = 0.5 + Math.random() * 0.2; // 稍微随机化音量
+    audio.play().catch(e => {
+        console.debug('播放落地音效失败:', e.message);
+    });
+}
 
-    const ctx = state.audioContext;
-    const now = ctx.currentTime;
+// ==================== 综合反馈控制 ====================
+function startShakeFeedback() {
+    // 启动振动
+    startShakeVibration();
+    // 启动摇晃音效
+    startRollingSound();
+}
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.2);
+function stopShakeFeedback() {
+    // 停止振动
+    stopShakeVibration();
+    // 停止摇晃音效
+    stopRollingSound();
 }
 
 // ==================== 启动应用 ====================
