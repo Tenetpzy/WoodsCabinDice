@@ -37,7 +37,6 @@ const state = {
 
     // 音频状态
     rollingAudio: null,             // 摇晃音效Audio元素
-    vibrationInterval: null,        // 振动定时器
 
     // 传感器状态
     gravityEstimate: { x: 0, y: 0, z: 0 },
@@ -211,6 +210,12 @@ async function startGame() {
         }
     }
 
+    // Android: 在用户手势回调中预先激活振动权限
+    // navigator.vibrate 必须在用户手势事件栈中调用才能工作
+    if (navigator.vibrate) {
+        navigator.vibrate(1); // 短振动激活权限
+    }
+
     showScreen('shake');
     initShakeMode();
     state.gameState = GameState.READY;
@@ -224,6 +229,11 @@ function startDemoMode() {
 }
 
 async function startGameDemo() {
+    // Android: 在用户手势回调中预先激活振动权限
+    if (navigator.vibrate) {
+        navigator.vibrate(1);
+    }
+
     showScreen('shake');
     initShakeMode();
     state.gameState = GameState.READY;
@@ -663,39 +673,35 @@ function resetGame() {
 
 // ==================== 振动模块 ====================
 function startShakeVibration() {
-    if (!navigator.vibrate) return;
+    if (!navigator.vibrate) {
+        console.debug('设备不支持振动API');
+        return;
+    }
 
     // 根据骰子个数计算振动强度
     const duration = CONFIG.VIBRATION_BASE_DURATION + state.diceCount * CONFIG.VIBRATION_PER_DICE;
 
-    // 立即触发一次振动
     try {
-        navigator.vibrate(duration);
+        // 使用振动模式数组创建连续振动 [振动时长, 暂停时长, 振动时长, ...]
+        // 这样比 setInterval 更可靠
+        const pattern = [];
+        for (let i = 0; i < 100; i++) { // 足够长的模式
+            pattern.push(duration);
+            pattern.push(30); // 短暂暂停
+        }
+        navigator.vibrate(pattern);
+
+        console.debug('振动已启动，强度:', duration, 'ms');
     } catch (e) {
         console.debug('振动失败:', e.message);
     }
-
-    // 持续振动（使用定时器循环触发）
-    state.vibrationInterval = setInterval(() => {
-        if (state.gameState === GameState.SHAKING) {
-            try {
-                navigator.vibrate(duration);
-            } catch (e) {
-                console.debug('振动失败:', e.message);
-            }
-        }
-    }, duration + 50);
 }
 
 function stopShakeVibration() {
-    if (state.vibrationInterval) {
-        clearInterval(state.vibrationInterval);
-        state.vibrationInterval = null;
-    }
-
     if (navigator.vibrate) {
         try {
-            navigator.vibrate(0);
+            navigator.vibrate(0); // 停止所有振动
+            console.debug('振动已停止');
         } catch (e) {
             // 忽略
         }
