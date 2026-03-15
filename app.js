@@ -17,9 +17,8 @@ const CONFIG = {
     COLLISION_COOLDOWN: 50,          // 碰撞音效冷却时间 (ms)
 
     // 振动参数
-    VIBRATION_COOLDOWN: 30,           // 振动冷却时间 (ms)
-    VIBRATION_BASE_DURATION: 15,      // 基础振动时长 (ms)
-    VIBRATION_MAX_DURATION: 100       // 最大振动时长 (ms)
+    VIBRATION_COOLDOWN: 30,           // 振动间隔时间 (ms)
+    VIBRATION_BASE_DURATION: 15       // 振动时长 (ms)
 };
 
 // 游戏状态枚举
@@ -48,7 +47,7 @@ const state = {
     animationFrame: null,
     lastCollisionTime: 0,
     lastRandomImpulseTime: 0,
-    lastVibrationTime: 0
+    vibrationInterval: null
 };
 
 // ==================== DOM 元素 ====================
@@ -422,6 +421,9 @@ function onShakeStart() {
         dice.rotationSpeed = (Math.random() - 0.5) * 30;
     });
 
+    // 在用户交互上下文中启动振动
+    startShakeVibration();
+
     startPhysicsAnimation();
 }
 
@@ -430,6 +432,7 @@ function onShakeEnd() {
 
     stopMotionDetection();
     stopPhysicsAnimation();
+    stopShakeVibration();
 
     generateResults();
     playLandingSounds();
@@ -531,10 +534,9 @@ function updatePhysics() {
         }
     }
 
-    // 播放碰撞音效和振动
+    // 播放碰撞音效
     if (collisionCount > 0) {
         playCollisionSoundThrottled(Math.min(1, collisionCount * 0.3));
-        triggerVibration(collisionCount);
     }
 
     // 更新DOM
@@ -639,6 +641,7 @@ function arrangeDiceNeatly() {
 // ==================== 重置游戏 ====================
 function resetGame() {
     stopPhysicsAnimation();
+    stopShakeVibration();
 
     if (state.isDemoMode) {
         elements.diceArea.removeEventListener('click', handleDemoShake);
@@ -665,22 +668,44 @@ function resetGame() {
 }
 
 // ==================== 振动模块 ====================
-function triggerVibration(collisionCount) {
-    // 检查振动API支持
+function startShakeVibration() {
     if (!navigator.vibrate) return;
 
-    const now = Date.now();
-    if (now - state.lastVibrationTime < CONFIG.VIBRATION_COOLDOWN) return;
+    // 立即触发一次振动（在用户交互上下文中）
+    try {
+        navigator.vibrate(CONFIG.VIBRATION_BASE_DURATION);
+    } catch (e) {
+        console.debug('振动失败:', e.message);
+        return;
+    }
 
-    // 根据碰撞数量计算振动强度
-    // 碰撞越多，振动时间越长（强度越大）
-    const duration = Math.min(
-        CONFIG.VIBRATION_BASE_DURATION * collisionCount,
-        CONFIG.VIBRATION_MAX_DURATION
-    );
+    // 启动周期性振动
+    state.vibrationInterval = setInterval(() => {
+        if (state.gameState !== GameState.SHAKING) {
+            stopShakeVibration();
+            return;
+        }
+        try {
+            navigator.vibrate(CONFIG.VIBRATION_BASE_DURATION);
+        } catch (e) {
+            // 忽略错误
+        }
+    }, CONFIG.VIBRATION_COOLDOWN);
+}
 
-    navigator.vibrate(duration);
-    state.lastVibrationTime = now;
+function stopShakeVibration() {
+    if (state.vibrationInterval) {
+        clearInterval(state.vibrationInterval);
+        state.vibrationInterval = null;
+    }
+    // 停止振动
+    if (navigator.vibrate) {
+        try {
+            navigator.vibrate(0);
+        } catch (e) {
+            // 忽略
+        }
+    }
 }
 
 // ==================== 音效模块 ====================
