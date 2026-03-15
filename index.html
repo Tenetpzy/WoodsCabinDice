@@ -39,9 +39,15 @@
 
     <!-- 不支持提示 -->
     <div id="not-supported" class="screen hidden">
-        <div class="error-message">
-            <h2>设备不支持</h2>
-            <p>此应用需要移动设备的传感器支持，请在支持传感器的移动设备上访问。</p>
+        <div class="error-container">
+            <div class="error-icon" id="error-icon">📱</div>
+            <h2 id="error-title">设备不支持</h2>
+            <p id="error-message" class="error-desc">正在检测设备...</p>
+            <div id="error-suggestions" class="error-suggestions">
+                <!-- 根据具体情况动态填充 -->
+            </div>
+            <button id="demo-btn" class="demo-btn hidden">试用演示模式</button>
+            <p class="demo-hint hidden" id="demo-hint">演示模式下可点击屏幕模拟摇骰子</p>
         </div>
     </div>
 

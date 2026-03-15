@@ -306,21 +306,100 @@ body {
 }
 
 /* 错误提示界面 */
-.error-message {
+.error-container {
     text-align: center;
     color: white;
-    padding: 30px;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
 }
 
-.error-message h2 {
+.error-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.error-container h2 {
     font-size: 1.8rem;
     margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.error-message p {
+.error-desc {
     font-size: 1rem;
     line-height: 1.6;
     opacity: 0.9;
+    margin-bottom: 25px;
+    max-width: 300px;
+}
+
+.error-suggestions {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 25px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    font-size: 0.95rem;
+    opacity: 0.95;
+}
+
+.suggestion-item:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.suggestion-icon {
+    margin-right: 12px;
+    font-size: 1.2rem;
+}
+
+.demo-btn {
+    padding: 16px 40px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 25px;
+    background-color: #27ae60;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    margin-top: 10px;
+}
+
+.demo-btn:hover {
+    background-color: #2ecc71;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.demo-btn:active {
+    transform: translateY(0);
+}
+
+.demo-hint {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    margin-top: 15px;
 }
 
 /* 响应式调整 */
