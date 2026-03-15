@@ -17,9 +17,9 @@ const CONFIG = {
     COLLISION_COOLDOWN: 50,          // 碰撞音效冷却时间 (ms)
 
     // 振动参数
-    VIBRATION_COOLDOWN: 30,           // 振动间隔时间 (ms)
-    VIBRATION_BASE_DURATION: 50,      // 基础振动时长 (ms)
-    VIBRATION_MAX_DURATION: 200       // 最大振动时长 (ms)
+    VIBRATION_COOLDOWN: 50,           // 振动间隔时间 (ms)
+    VIBRATION_BASE_DURATION: 100,     // 基础振动时长 (ms)
+    VIBRATION_INTENSITY_STEP: 50       // 每次碰撞增加的振动时长 (ms)
 };
 
 // 游戏状态枚举
@@ -678,10 +678,7 @@ function triggerCollisionVibration(collisionCount) {
     if (now - lastVibrationTime < CONFIG.VIBRATION_COOLDOWN) return;
 
     // 根据碰撞次数计算振动时长，碰撞越多振动越强
-    const duration = Math.min(
-        CONFIG.VIBRATION_BASE_DURATION + collisionCount * 30,
-        CONFIG.VIBRATION_MAX_DURATION
-    );
+    const duration = CONFIG.VIBRATION_BASE_DURATION + collisionCount * CONFIG.VIBRATION_INTENSITY_STEP;
 
     try {
         navigator.vibrate(duration);
