@@ -18,12 +18,8 @@ const CONFIG = {
     RANDOM_IMPULSE_STRENGTH: 6,     // 随机冲量强度
 
     // 振动参数
-    VIBRATION_PULSE_BASE: 30,       // 振动脉冲基础时长 (ms)
-    VIBRATION_PULSE_PER_DICE: 12,   // 每个骰子增加的脉冲时长 (ms)
-    VIBRATION_MAX_PULSE: 160,       // 单次脉冲最大时长 (ms)
-    VIBRATION_PAUSE_BASE: 90,       // 脉冲间隔基础时长 (ms)
-    VIBRATION_PAUSE_PER_DICE: -6,   // 每个骰子减少的间隔时长 (ms)
-    VIBRATION_MIN_PAUSE: 25         // 脉冲间隔最小值 (ms)
+    VIBRATION_ON_COLLISION: 15,      // 碰撞时振动时长 (ms)
+    VIBRATION_COOLDOWN: 50,          // 碰撞振动冷却时间 (ms)，防止过于频繁
 };
 
 // 游戏状态枚举
@@ -46,7 +42,7 @@ const state = {
     lastMotionTime: 0,
 
     // 音频状态
-    rollingAudio: null,             // 摇晃音效Audio元素
+    rollingAudios: [],            // 摇晃音效Audio元素数组（交叠播放）
 
     // 传感器状态
     gravityEstimate: { x: 0, y: 0, z: 0 },
@@ -57,7 +53,7 @@ const state = {
     lastRandomImpulseTime: 0,
 
     // 振动状态
-    vibrationTimer: null
+    lastVibrationTime: 0            // 上次振动时间，用于冷却控制
 };
 
 // ==================== DOM 元素 ====================
@@ -549,24 +545,28 @@ function updatePhysics() {
             dice.vx = Math.abs(dice.vx) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             collisionCount++;
+            vibrateOnCollision();
         }
         if (dice.x > maxX) {
             dice.x = maxX;
             dice.vx = -Math.abs(dice.vx) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             collisionCount++;
+            vibrateOnCollision();
         }
         if (dice.y < CONFIG.DICE_MARGIN) {
             dice.y = CONFIG.DICE_MARGIN;
             dice.vy = Math.abs(dice.vy) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             collisionCount++;
+            vibrateOnCollision();
         }
         if (dice.y > maxY) {
             dice.y = maxY;
             dice.vy = -Math.abs(dice.vy) * CONFIG.RESTITUTION;
             dice.rotationSpeed += (Math.random() - 0.5) * 10;
             collisionCount++;
+            vibrateOnCollision();
         }
     });
 
@@ -575,6 +575,7 @@ function updatePhysics() {
         for (let j = i + 1; j < state.dicePhysics.length; j++) {
             if (checkDiceCollision(state.dicePhysics[i], state.dicePhysics[j])) {
                 collisionCount++;
+                vibrateOnCollision();
             }
         }
     }
@@ -695,6 +696,8 @@ function resetGame() {
     state.stillnessStartTime = 0;
     state.smoothedMagnitude = 0;
     state.lastMotionTime = 0;
+    state.rollingAudios = [];
+    state.lastVibrationTime = 0;
 
     elements.shakeScreen.classList.remove('showing-result');
     elements.shakeScreen.classList.remove('shaking');
@@ -710,80 +713,58 @@ function resetGame() {
 }
 
 // ==================== 振动模块 ====================
-function startShakeVibration() {
-    if (!navigator.vibrate) {
-        console.debug('设备不支持振动API');
-        return;
-    }
-
-    // 先停止可能存在的振动循环，避免叠加
-    stopShakeVibration();
-
-    try {
-        const diceCount = Math.max(1, state.diceCount);
-        let pulse = CONFIG.VIBRATION_PULSE_BASE + diceCount * CONFIG.VIBRATION_PULSE_PER_DICE;
-        pulse = Math.min(CONFIG.VIBRATION_MAX_PULSE, Math.max(20, pulse));
-
-        let pause = CONFIG.VIBRATION_PAUSE_BASE + diceCount * CONFIG.VIBRATION_PAUSE_PER_DICE;
-        pause = Math.max(CONFIG.VIBRATION_MIN_PAUSE, pause);
-
-        const interval = pulse + pause;
-
-        // 用短脉冲循环保持持续感，避免超长 pattern 被浏览器忽略
-        navigator.vibrate([pulse, pause]);
-        state.vibrationTimer = setInterval(() => {
-            navigator.vibrate([pulse, pause]);
-        }, interval);
-
-        console.debug('振动已启动，脉冲:', pulse, 'ms, 间隔:', pause, 'ms');
-    } catch (e) {
-        console.debug('振动失败:', e.message);
-    }
-}
-
-function stopShakeVibration() {
-    if (state.vibrationTimer) {
-        clearInterval(state.vibrationTimer);
-        state.vibrationTimer = null;
-    }
-
+function vibrateOnCollision() {
     if (!navigator.vibrate) return;
 
+    const now = Date.now();
+    if (now - state.lastVibrationTime < CONFIG.VIBRATION_COOLDOWN) return;
+
+    state.lastVibrationTime = now;
     try {
-        navigator.vibrate(0); // 停止所有振动
-        console.debug('振动已停止');
+        navigator.vibrate(CONFIG.VIBRATION_ON_COLLISION);
     } catch (e) {
-        // 忽略
+        // 忽略振动错误
     }
 }
 
 // ==================== 音效模块 ====================
-function initRollingAudio() {
-    // 创建摇晃音效Audio元素
-    state.rollingAudio = new Audio('rollingdice.mp3');
-    state.rollingAudio.loop = true;
-    state.rollingAudio.volume = 0.6;
+function initRollingAudios() {
+    // 根据骰子数量创建多个Audio元素实现交叠播放
+    // 骰子越多，交叠的音频越多，声音更丰富
+    const audioCount = Math.min(state.diceCount, 4); // 最多4个交叠
+    state.rollingAudios = [];
+
+    for (let i = 0; i < audioCount; i++) {
+        const audio = new Audio('rollingdice.mp3');
+        audio.loop = true;
+        audio.volume = 0.4 + (i * 0.1); // 每个音频音量稍有不同，增加层次感
+        state.rollingAudios.push(audio);
+    }
 }
 
 function startRollingSound() {
-    if (!state.rollingAudio) {
-        initRollingAudio();
+    if (state.rollingAudios.length === 0) {
+        initRollingAudios();
     }
 
-    // 确保从头开始播放，不重叠
-    if (state.rollingAudio.paused) {
-        state.rollingAudio.currentTime = 0;
-        state.rollingAudio.play().catch(e => {
-            console.debug('播放摇晃音效失败:', e.message);
-        });
-    }
+    // 交叠播放，每个音频稍有延迟
+    state.rollingAudios.forEach((audio, index) => {
+        if (audio.paused) {
+            setTimeout(() => {
+                audio.currentTime = 0;
+                audio.play().catch(e => {
+                    console.debug('播放摇晃音效失败:', e.message);
+                });
+            }, index * 100); // 每个音频延迟100ms，形成交叠效果
+        }
+    });
 }
 
 function stopRollingSound() {
-    if (state.rollingAudio) {
-        state.rollingAudio.pause();
-        state.rollingAudio.currentTime = 0;
-    }
+    state.rollingAudios.forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+    });
 }
 
 function playDropDiceSound() {
@@ -809,15 +790,11 @@ function playSingleDropSound() {
 
 // ==================== 综合反馈控制 ====================
 function startShakeFeedback() {
-    // 启动振动
-    startShakeVibration();
-    // 启动摇晃音效
+    // 启动摇晃音效（振动由碰撞触发）
     startRollingSound();
 }
 
 function stopShakeFeedback() {
-    // 停止振动
-    stopShakeVibration();
     // 停止摇晃音效
     stopRollingSound();
 }
