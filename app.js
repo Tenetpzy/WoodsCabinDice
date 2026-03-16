@@ -83,7 +83,7 @@ const elements = {
 
 // ==================== 音效文件 ====================
 const audioFiles = {
-    verify: 'woyaoyanpai.wav',
+    verify: 'woyaoyanpai.mp3',
     ok: 'paimeiyouwenti.mp3',
     arrogant: 'geiwocapixie.wav'
 };
