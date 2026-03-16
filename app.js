@@ -42,7 +42,8 @@ const state = {
     lastMotionTime: 0,
 
     // 音频状态
-    rollingAudios: [],            // 摇晃音效Audio元素数组（交叠播放）
+    rollingAudios: [],            // 摇晃音效Audio元素数组
+    lastShakeSoundTime: 0,        // 上次播放摇晃音效的时间
 
     // 传感器状态
     gravityEstimate: { x: 0, y: 0, z: 0 },
@@ -396,6 +397,8 @@ function handleMotion(event) {
 
     if (motionLevel > CONFIG.SHAKE_CONTINUE_THRESHOLD) {
         state.lastMotionTime = now;
+        // 每次检测到有效晃动时播放摇晃音效
+        playShakeSound();
     }
 
     if (motionLevel < CONFIG.SHAKE_END_THRESHOLD) {
@@ -697,6 +700,7 @@ function resetGame() {
     state.smoothedMagnitude = 0;
     state.lastMotionTime = 0;
     state.rollingAudios = [];
+    state.lastShakeSoundTime = 0;
     state.lastVibrationTime = 0;
 
     elements.shakeScreen.classList.remove('showing-result');
@@ -729,41 +733,29 @@ function vibrateOnCollision() {
 
 // ==================== 音效模块 ====================
 function initRollingAudios() {
-    // 根据骰子数量创建多个Audio元素实现交叠播放
-    // 骰子越多，交叠的音频越多，声音更丰富
-    const audioCount = Math.min(state.diceCount, 4); // 最多4个交叠
+    // 预加载摇晃音效
     state.rollingAudios = [];
-
-    for (let i = 0; i < audioCount; i++) {
-        const audio = new Audio('rollingdice.mp3');
-        audio.loop = true;
-        audio.volume = 0.4 + (i * 0.1); // 每个音频音量稍有不同，增加层次感
-        state.rollingAudios.push(audio);
-    }
+    const audio = new Audio('rollingdice.mp3');
+    audio.volume = 0.6;
+    state.rollingAudios.push(audio);
 }
 
-function startRollingSound() {
+function playShakeSound() {
     if (state.rollingAudios.length === 0) {
         initRollingAudios();
     }
 
-    // 交叠播放，每个音频稍有延迟
-    state.rollingAudios.forEach((audio, index) => {
-        if (audio.paused) {
-            setTimeout(() => {
-                audio.currentTime = 0;
-                audio.play().catch(e => {
-                    console.debug('播放摇晃音效失败:', e.message);
-                });
-            }, index * 100); // 每个音频延迟100ms，形成交叠效果
-        }
-    });
-}
+    const now = Date.now();
+    // 随机冷却时间 80-180ms，防止声音过于密集
+    const cooldown = 80 + Math.random() * 100;
 
-function stopRollingSound() {
-    state.rollingAudios.forEach(audio => {
-        audio.pause();
-        audio.currentTime = 0;
+    if (now - state.lastShakeSoundTime < cooldown) return;
+
+    state.lastShakeSoundTime = now;
+    const audio = state.rollingAudios[0];
+    audio.currentTime = 0;
+    audio.play().catch(e => {
+        console.debug('播放摇晃音效失败:', e.message);
     });
 }
 
@@ -790,13 +782,19 @@ function playSingleDropSound() {
 
 // ==================== 综合反馈控制 ====================
 function startShakeFeedback() {
-    // 启动摇晃音效（振动由碰撞触发）
-    startRollingSound();
+    // 预加载音频，振动由碰撞触发
+    if (state.rollingAudios.length === 0) {
+        initRollingAudios();
+    }
+    state.lastShakeSoundTime = 0;
 }
 
 function stopShakeFeedback() {
-    // 停止摇晃音效
-    stopRollingSound();
+    // 停止正在播放的摇晃音效
+    if (state.rollingAudios.length > 0) {
+        state.rollingAudios[0].pause();
+        state.rollingAudios[0].currentTime = 0;
+    }
 }
 
 // ==================== 启动应用 ====================
