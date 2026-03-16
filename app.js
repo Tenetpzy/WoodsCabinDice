@@ -74,7 +74,18 @@ const elements = {
     errorMessage: document.getElementById('error-message'),
     errorSuggestions: document.getElementById('error-suggestions'),
     demoBtn: document.getElementById('demo-btn'),
-    demoHint: document.getElementById('demo-hint')
+    demoHint: document.getElementById('demo-hint'),
+    reactionButtons: document.getElementById('reaction-buttons'),
+    verifyBtn: document.getElementById('verify-btn'),
+    okBtn: document.getElementById('ok-btn'),
+    arrogantBtn: document.getElementById('arrogant-btn')
+};
+
+// ==================== 音效文件 ====================
+const audioFiles = {
+    verify: 'woyaoyanpai.wav',
+    ok: 'paimeiyouwenti.mp3',
+    arrogant: 'geiwocapixie.wav'
 };
 
 // ==================== 初始化 ====================
@@ -181,6 +192,11 @@ function bindEvents() {
 
     // 演示模式按钮
     elements.demoBtn.addEventListener('click', startDemoMode);
+
+    // 反应按钮
+    elements.verifyBtn.addEventListener('click', () => playReactionSound('verify'));
+    elements.okBtn.addEventListener('click', () => playReactionSound('ok'));
+    elements.arrogantBtn.addEventListener('click', () => playReactionSound('arrogant'));
 }
 
 // ==================== 界面切换 ====================
@@ -277,6 +293,7 @@ function initShakeMode() {
     elements.shakeHint.classList.remove('hidden');
     elements.resultArea.classList.add('hidden');
     elements.restartBtn.classList.add('hidden');
+    elements.reactionButtons.classList.add('hidden');
 
     // 移除状态类
     elements.shakeScreen.classList.remove('shaking');
@@ -648,6 +665,7 @@ function showResults() {
     // 显示结果区域和重新开始按钮
     elements.resultArea.classList.remove('hidden');
     elements.restartBtn.classList.remove('hidden');
+    elements.reactionButtons.classList.remove('hidden');
     elements.shakeHint.classList.add('hidden');
 }
 
@@ -710,6 +728,7 @@ function resetGame() {
     elements.diceArea.innerHTML = '';
     elements.resultArea.classList.add('hidden');
     elements.restartBtn.classList.add('hidden');
+    elements.reactionButtons.classList.add('hidden');
     elements.shakeHint.classList.remove('hidden');
     elements.shakeHint.textContent = '晃动手机摇骰子';
 
@@ -795,6 +814,15 @@ function stopShakeFeedback() {
         state.rollingAudios[0].pause();
         state.rollingAudios[0].currentTime = 0;
     }
+}
+
+// ==================== 反应按钮音效 ====================
+function playReactionSound(type) {
+    const audio = new Audio(audioFiles[type]);
+    audio.volume = 0.8;
+    audio.play().catch(e => {
+        console.debug('播放反应音效失败:', e.message);
+    });
 }
 
 // ==================== 启动应用 ====================
